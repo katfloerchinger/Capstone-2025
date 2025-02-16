@@ -8,10 +8,8 @@ fs = num_samples / 10; % Sampling frequency (100 Hz)
 
 % Create synthetic EEG data (sine waves with noise)
 eeg_data = sin(2 * pi * (1:num_channels)' * t) + 0.1 * randn(num_channels, num_samples);
+tau = 10; 
 
-% Phase space reconstruction parameters
-tau = 10; % Time delay (arbitrary choice, can be optimized)
-embedding_dim = 3; % Embedding dimension
 
 % Plot phase space reconstruction for each channel
 figure;
