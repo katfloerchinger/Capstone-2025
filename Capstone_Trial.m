@@ -48,9 +48,16 @@ end
 xlabel('Time (s)');
 
 
-cutoff_freq = 0.5;  % Cutoff frequency in Hz
-order = 4; % Filter order
-[b, a] = butter(order, cutoff_freq/(sample_rate/2), 'low');
+
+low_cutoff = 0.5;   % Lower cutoff frequency (Hz)
+high_cutoff = 100;  % Upper cutoff frequency (Hz)
+order = 4;          % Filter order
+% Normalize the cutoff frequencies (divide by Nyquist frequency)
+nyquist = sample_rate / 2;  
+wn = [low_cutoff, high_cutoff] / nyquist;  % Normalized cutoff frequencies
+% Design a band-pass Butterworth filter
+[b, a] = butter(order, wn, 'bandpass');
+% Apply zero-phase filtering using filtfilt (prevents phase distortion)
 filtered_signal_data = filtfilt(b, a, aligned_signal_data);
 
 for i = 1:2
@@ -102,28 +109,28 @@ for i = 1:2
 end
 xlabel('Time (s)');
 
-% Phase space reconstruction parameters
-tau = 1; % Time delay (arbitrary choice, can be optimized)
-for i = 1:2
-    figure;  % Create a new figure for each channel
-    % Create the phase space plot
-    plot(aligned_signal_data(2:end, i), aligned_signal_data(1:end-1, i), 'r');
-    xlabel('Smooth Signal (t)', 'Interpreter', 'none');
-    ylabel('Smooth Signal (t-1)', 'Interpreter', 'none');
-    title(['Phase Space Plot for Channel ', signal_labels{i}], 'Interpreter', 'none');
-    grid on;
-end
-title('Phase Space Reconstruction of EEG Data');
+% % Phase space reconstruction parameters
+% tau = 1; % Time delay (arbitrary choice, can be optimized)
+% for i = 1:2
+%     figure;  % Create a new figure for each channel
+%     % Create the phase space plot
+%     plot(aligned_signal_data(2:end, i), aligned_signal_data(1:end-1, i), 'r');
+%     xlabel('Smooth Signal (t)', 'Interpreter', 'none');
+%     ylabel('Smooth Signal (t-1)', 'Interpreter', 'none');
+%     title(['Phase Space Plot for Channel ', signal_labels{i}], 'Interpreter', 'none');
+%     grid on;
+% end
+% title('Phase Space Reconstruction of EEG Data');
 
-tau = 50;
+tau = 512;
 figure;
-aligned_signal_data = aligned_signal_data';
+smooth_signal_data = smooth_signal_data';
 for ch = 1:2
     subplot(1,2,ch);
-    X = aligned_signal_data(ch, :);
-    X1 = X(1:end - 2*tau);
+    X = smooth_signal_data(ch, :);
+    X3 = X(1:end - 2*tau);
     X2 = X(1+tau:end - tau);
-    X3 = X(1+2*tau:end);
+    X1 = X(1+2*tau:end);
     
     plot3(X1, X2, X3, 'b');
     grid on;
