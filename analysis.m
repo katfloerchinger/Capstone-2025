@@ -1,7 +1,7 @@
 %% Analyzing phase space reconstruction
 
 % setting which data to analyze
-anyl_data = filtered_signal_data;
+anyl_data = aligned_signal_data;
 
 % Setting parameters
 tolerance = 0.01;  % Linearization value tolerance 
@@ -72,3 +72,4 @@ for i = 1:step_specificity:length(anyl_data) - test_window
         break;
     end
 end
+    

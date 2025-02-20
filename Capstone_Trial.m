@@ -114,3 +114,21 @@ for i = 1:2
     grid on;
 end
 title('Phase Space Reconstruction of EEG Data');
+
+tau = 50;
+figure;
+aligned_signal_data = aligned_signal_data';
+for ch = 1:2
+    subplot(1,2,ch);
+    X = aligned_signal_data(ch, :);
+    X1 = X(1:end - 2*tau);
+    X2 = X(1+tau:end - tau);
+    X3 = X(1+2*tau:end);
+    
+    plot3(X1, X2, X3, 'b');
+    grid on;
+    xlabel('X(t)'); ylabel(['X(t+', num2str(tau), ')']); zlabel(['X(t+', num2str(2*tau), ')']);
+    title(['EEG Channel ', num2str(ch)]);
+end
+
+sgtitle('Phase Space Reconstruction of EEG Data');
