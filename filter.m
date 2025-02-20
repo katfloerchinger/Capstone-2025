@@ -1,28 +1,14 @@
-%% **Low-Pass Filter Design**
-cutoff_freq = 0.5;  % Cutoff frequency in Hz
-order = 4; % Filter order
+% Define band-pass cutoff frequencies
+low_cutoff = 0.5;   % Lower cutoff frequency (Hz)
+high_cutoff = 100;  % Upper cutoff frequency (Hz)
+order = 4;          % Filter order
 
-% Design Butterworth low-pass filter
-[b, a] = butter(order, cutoff_freq/(sample_rate/2), 'low');
+% Normalize the cutoff frequencies (divide by Nyquist frequency)
+nyquist = sample_rate / 2;  
+wn = [low_cutoff, high_cutoff] / nyquist;  % Normalized cutoff frequencies
 
-% Apply the filter to each channel
+% Design a band-pass Butterworth filter
+[b, a] = butter(order, wn, 'bandpass');
+
+% Apply zero-phase filtering using filtfilt (prevents phase distortion)
 filtered_signal_data = filtfilt(b, a, aligned_signal_data);
-
-%% **Plot Original and Filtered EEG Signals**
-figure;
-
-for i = 1:2
-    subplot(2, 2, i);
-    plot(aligned_time_data, aligned_signal_data(:, i));
-    ylabel(signal_labels{i}, 'Interpreter', 'none');
-    title(['Original EEG Signal - ', signal_labels{i}]);
-    grid on;
-
-    subplot(2, 2, i + 2);
-    plot(aligned_time_data, filtered_signal_data(:, i), 'r');
-    ylabel(signal_labels{i}, 'Interpreter', 'none');
-    title(['Filtered EEG Signal - ', signal_labels{i}]);
-    grid on;
-end
-
-xlabel('Time (s)');
