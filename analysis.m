@@ -1,10 +1,13 @@
 %% Analyzing phase space reconstruction
 
+% setting which data to analyze
+anyl_data = filtered_signal_data;
+
 % Setting parameters
 tolerance = 0.01;  % Linearization value tolerance 
-test_window = 100;  % Linearization analysis window
-test_point_specificity = 1;  % Point gap
-step_specificity = 10;  % Gap step analysis
+test_window = 2000;  % Linearization analysis window
+test_point_specificity = 40;  % Point gap
+step_specificity = 1000;  % Gap step analysis
 
 % Severity Marks
 marks = [0.4, 0.5, 0.6, 0.75, 0.85];  
@@ -12,26 +15,35 @@ messages = {
     'Predicting seizure activity.', ...
     'Possible progression into seizure severity 1.', ...
     'Possible progression into seizure severity 2.', ...
-    'Probably seizure.', ...
+    'Probable seizure.', ...
     'Definitive seizure activity detected. Immediate medical attention required.'
 };
 
 % Threshold for consecutive detection of definitive seizure activity
-seizure_threshold = 1000;  
+seizure_threshold = 20;  
 seizure_counter = 0;  % Tracks consecutive detections
 
 % Initialize linearization score tracking
-linearization_score = zeros(length(aligned_signal_data), 1);
+linearization_score = zeros(length(anyl_data), 1);
 
 % Loop through the data in chunks
-for i = 1:step_specificity:length(aligned_signal_data) - test_window
-    % Extract the segment of phase space
-    x_segment = aligned_signal_data(i:i + test_window, 1);  % Channel C3
-    y_segment = aligned_signal_data(i:i + test_window, 2);  % Channel C4
+for i = 1:step_specificity:length(anyl_data) - test_window
+    % Extract segment of phase space
+    x_segment = anyl_data(i:i + test_window, 1);  
+    y_segment = anyl_data(i:i + test_window, 2);  
 
-    % Fit a linear model (y = ax + b)
-    p = polyfit(x_segment, y_segment, 1);  
-    y_fit = polyval(p, x_segment);
+    % Skip poorly conditioned segments
+    if var(x_segment) < 1e-6 || var(y_segment) < 1e-6
+        continue;
+    end
+
+    % Center data to improve numerical stability
+    x_centered = x_segment - mean(x_segment);
+    y_centered = y_segment - mean(y_segment);
+
+    % Fit linear model (robust to poorly conditioned data)
+    p = polyfit(x_centered, y_centered, 1);  
+    y_fit = polyval(p, x_centered) + mean(y_segment);
     
     % Compute the error (how linear the phase space is)
     error_mse = mean((y_segment - y_fit).^2);
@@ -58,5 +70,7 @@ for i = 1:step_specificity:length(aligned_signal_data) - test_window
         fprintf('[EMERGENCY] Patient experiencing ongoing seizure. Immediate medical attention needed.\n');
         fprintf('Time: %.2f seconds\n', i / sample_rate);
         break;
+    end
+end
     end
 end
