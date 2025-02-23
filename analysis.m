@@ -35,6 +35,12 @@ score_idx = 1;
 % Loop through EEG data in steps
 for i = 1:step_specificity:(length(aligned_signal_data) - test_window - 2*tau)
     
+    % make sure analysis is within index of data, break and notify
+    if (i + test_window + 2*tau) > length(smooth_signal_data)
+        fprintf('Analysis for seizure goes over current known signal data.');
+        break;  % Exit the loop to prevent out-of-bounds access
+    end
+    
     % Extract 3D Phase Space segment
     X1 = smooth_signal_data(i:i + test_window, 1);  
     X2 = smooth_signal_data(i+tau:i + tau + test_window, 1);  
@@ -96,6 +102,7 @@ for i = 1:step_specificity:(length(aligned_signal_data) - test_window - 2*tau)
 
     % Move to the next index
     score_idx = score_idx + 1;
+
 end
 
 % Plot Results
@@ -126,6 +133,3 @@ xlabel('Time (s)');
 ylabel('Combined Score');
 title('Combined Seizure Prediction Score');
 grid on;
-
-    end
-end
