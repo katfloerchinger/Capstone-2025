@@ -1,16 +1,16 @@
-%% Analyzing phase space reconstruction
-
-% setting which data to analyze
-anyl_data = filtered_signal_data;
+%% Enhanced Phase Space Analysis with Maximum Time Gap for Seizure Detection
 
 % Setting parameters
-tolerance = 0.01;  % Linearization value tolerance 
-test_window = 2000;  % Linearization analysis window
-test_point_specificity = 40;  % Point gap
-step_specificity = 1000;  % Gap step analysis
+smooth_signal_data = smooth_signal_data'; % reformating data
+tolerance = 0.02;  % Tolerance for severity markers
+test_window = 2000;  % Number of samples per analysis window
+step_specificity = 1000;  % Step size between windows
+tau = 512;  % Time delay for phase space reconstruction
+alpha = 0.4; % compactness score weight
+beta = 0.6; % linearization score weight
 
-% Severity Marks
-marks = [0.4, 0.5, 0.6, 0.75, 0.85];  
+% Seizure Severity Marks
+marks = [0.35, 0.45, 0.55, 0.7, 0.8];
 messages = {
     'Predicting seizure activity.', ...
     'Possible progression into seizure severity 1.', ...
@@ -19,58 +19,113 @@ messages = {
     'Definitive seizure activity detected. Immediate medical attention required.'
 };
 
-% Threshold for consecutive detection of definitive seizure activity
-seizure_threshold = 20;  
-seizure_counter = 0;  % Tracks consecutive detections
+% New: Define maximum allowed time gap for level 5 detections
+max_gap_seconds = 5;  % If another level 5 marker appears within x secs, trigger emergency
+last_marker5_time = -inf;  % Initialize last level 5 detection time to a very negative number
 
-% Initialize linearization score tracking
-linearization_score = zeros(length(anyl_data), 1);
+% Initialize tracking lists
+compactness_score = []; 
+linearization_score = []; 
+combined_score = []; 
+time_stamps = []; % Store corresponding time indices
 
-% Loop through the data in chunks
-for i = 1:step_specificity:length(anyl_data) - test_window
-    % Extract segment of phase space
-    x_segment = anyl_data(i:i + test_window, 1);  
-    y_segment = anyl_data(i:i + test_window, 2);  
+% Score index for storing values properly
+score_idx = 1;  
 
+% Loop through EEG data in steps
+for i = 1:step_specificity:(length(aligned_signal_data) - test_window - 2*tau)
+    
+    % Extract 3D Phase Space segment
+    X1 = smooth_signal_data(i:i + test_window, 1);  
+    X2 = smooth_signal_data(i+tau:i + tau + test_window, 1);  
+    X3 = smooth_signal_data(i+2*tau:i + 2*tau + test_window, 1);
+    
     % Skip poorly conditioned segments
-    if var(x_segment) < 1e-6 || var(y_segment) < 1e-6
+    if var(X1) < 1e-6 || var(X2) < 1e-6 || var(X3) < 1e-6
         continue;
     end
 
-    % Center data to improve numerical stability
-    x_centered = x_segment - mean(x_segment);
-    y_centered = y_segment - mean(y_segment);
+    % Compactness Test (Euclidean Distance)
+    distances = sqrt((X1 - mean(X1)).^2 + (X2 - mean(X2)).^2 + (X3 - mean(X3)).^2);
+    compactness = mean(distances);  % Lower distance → more compact phase space
+    compactness = 1 - exp(-compactness);  % Normalize
 
-    % Fit linear model (robust to poorly conditioned data)
-    p = polyfit(x_centered, y_centered, 1);  
-    y_fit = polyval(p, x_centered) + mean(y_segment);
+    % Linearization Test (Least Squares Regression)
+    % Center data for numerical stability
+    X_centered = X1 - mean(X1);
+    Y_centered = X2 - mean(X2);
     
-    % Compute the error (how linear the phase space is)
-    error_mse = mean((y_segment - y_fit).^2);
-    
-    % Normalize the error (scaling to 0-1 range)
-    linearization_score(i) = 1 - exp(-error_mse); 
+    % Fit a linear model: Y = mX + b
+    p = polyfit(X_centered, Y_centered, 1);  
+    Y_fit = polyval(p, X_centered) + mean(X2);
 
-    % Check if score exceeds severity thresholds
+    % Compute mean squared error (MSE)
+    error_mse = mean((Y_centered - Y_fit).^2);
+    linearization = 1 - exp(-error_mse);  % Normalize to 0-1 range
+
+    % Combine Compactness + Linearization Scores
+    combined = (compactness * alpha) + (linearization * beta);
+
+    % Store values properly in the list
+    compactness_score(score_idx) = compactness;
+    linearization_score(score_idx) = linearization;
+    combined_score(score_idx) = combined;
+    time_stamps(score_idx) = i / sample_rate;  % Convert to seconds
+    
+    % Check Severity Thresholds
     for j = 1:length(marks)
-        if linearization_score(i) >= marks(j) - tolerance
-            fprintf('[ALERT] %s Time: %.2f seconds\n', messages{j}, i / sample_rate);
+        if combined >= marks(j) - tolerance
+            fprintf('[ALERT] %s Time: %.2f seconds\n', messages{j}, time_stamps(score_idx));
         end
     end
 
-    % Emergency condition: Check for consecutive detections
-    if linearization_score(i) >= marks(end) - tolerance
-        seizure_counter = seizure_counter + 1;  % Increment if marker 5 is triggered
-    else
-        seizure_counter = 0;  % Reset if marker 5 is not triggered consecutively
+    % New: Check Maximum Time Gap Between Level 5 Detections
+    if combined >= marks(end) - tolerance  % If level 5 is detected
+        current_time = time_stamps(score_idx);
+
+        if (current_time - last_marker5_time) <= max_gap_seconds
+            % If another level 5 detection is found within 10 sec, trigger emergency
+            fprintf('[EMERGENCY] Patient experiencing ongoing seizure. Immediate medical attention needed.\n');
+            fprintf('Time: %.2f seconds\n', current_time);
+            break;
+        end
+
+        % Update last detected level 5 time
+        last_marker5_time = current_time;
     end
 
-    % If marker 5 is detected consecutively, trigger emergency response and break
-    if seizure_counter >= seizure_threshold
-        fprintf('[EMERGENCY] Patient experiencing ongoing seizure. Immediate medical attention needed.\n');
-        fprintf('Time: %.2f seconds\n', i / sample_rate);
-        break;
-    end
+    % Move to the next index
+    score_idx = score_idx + 1;
 end
+
+% Plot Results
+figure;
+subplot(3,1,1);
+plot(time_stamps, compactness_score, 'b');
+hold on;
+yline(marks(end), 'r--', 'Seizure Threshold');
+xlabel('Time (s)');
+ylabel('Compactness Score');
+title('Compactness Score Over Time');
+grid on;
+
+subplot(3,1,2);
+plot(time_stamps, linearization_score, 'g');
+hold on;
+yline(marks(end), 'r--', 'Seizure Threshold');
+xlabel('Time (s)');
+ylabel('Linearization Score');
+title('Linearization Score Over Time');
+grid on;
+
+subplot(3,1,3);
+plot(time_stamps, combined_score, 'm');
+hold on;
+yline(marks(end), 'r--', 'Seizure Threshold');
+xlabel('Time (s)');
+ylabel('Combined Score');
+title('Combined Seizure Prediction Score');
+grid on;
+
     end
 end
