@@ -2,7 +2,7 @@ clc; close all; clear all;
 
 %% Load EEG File
 
-edf_file = '/Users/anthonytellez/Desktop/BIOEN 404/eeglab2024.2/EEG2.edf'; % EEG file path
+edf_file = '/Users/anthonytellez/Desktop/BIOEN 404/eeglab2024.2/EEG1.edf'; % EEG file path
 [hdr, record] = edfread(edf_file);
 duration_minutes = height(hdr)/60;
 
@@ -165,7 +165,7 @@ messages = {
 };
 
 % New: Define maximum allowed time gap for level 5 detections
-max_gap_seconds = 30;  % If another level 5 marker appears within x secs, trigger emergency
+max_gap_seconds = 20;  % If another level 5 marker appears within x secs, trigger emergency
 last_marker5_time = -inf;  % Initialize last level 5 detection time to a very negative number
 
 % Initialize tracking lists
