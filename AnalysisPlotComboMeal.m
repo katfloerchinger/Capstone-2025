@@ -97,7 +97,8 @@ filtered_signal = movmean(filtered_signal_data, window_size);
 
 seconds_to_test = 20;
 num_intervals = 6;
-start_times = linspace(650000, 650000 + (num_intervals - 1) * 20 * sample_rate, num_intervals);
+starting_index = 650000;
+start_times = linspace(starting_index, starting_index + (num_intervals - 1) * 20 * sample_rate, num_intervals);
 
 figure;
 for i = 1:num_intervals
@@ -106,7 +107,7 @@ for i = 1:num_intervals
     subplot(2, 3, i);
     plot(aligned_time_data(start:finish), filtered_signal(start:finish), 'r');
     ylabel(full_signal_labels{channel_idx}, 'Interpreter', 'none');
-    title(['Filtered EEG Signal - Interval ', num2str(i)]);
+    title(['Filtered EEG Signal at ', num2str(round((starting_index + start)/512)), ' Seconds']);
     grid on;
     xlabel('Time (s)');
 end
@@ -126,7 +127,7 @@ for i = 1:num_intervals
     plot3(X1, X2, X3, 'b');
     grid on;
     xlabel('X(t)'); ylabel(['X(t-', num2str(tau/512), 'sec)']); zlabel(['X(t-', num2str(2*(tau/512)), 'sec)']);
-    title(['Phase Space Reconstruction - Interval ', num2str(i)]);
+    title(['Phase Space Reconstruction at ', num2str(round((starting_index + start)/512)), ' Seconds']);
 end
 
 %% Enhanced Phase Space Analysis with Maximum Time Gap for Seizure Detection
@@ -150,7 +151,7 @@ messages = {
 };
 
 % New: Define maximum allowed time gap for level 5 detections
-max_gap_seconds = 30;  % If another level 5 marker appears within x secs, trigger emergency
+max_gap_seconds = 20;  % If another level 5 marker appears within x secs, trigger emergency
 last_marker5_time = -inf;  % Initialize last level 5 detection time to a very negative number
 
 % Initialize tracking lists
