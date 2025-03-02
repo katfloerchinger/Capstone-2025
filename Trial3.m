@@ -128,19 +128,6 @@ title(['Smoothed EEG Signal - ', full_signal_labels{channel_idx}]);
 grid on;
 xlabel('Time (s)');
 
-%% Phase Space Reconstruction
-
-tau = 512;
-figure;
-X = smooth_signal_data';
-X3 = X(1:end - 2*tau); % Backward
-X2 = X(1+2*tau:end);   % Forward
-X1 = X(1+tau:end - tau); % Standard
-
-plot3(X1, X2, X3, 'b');
-grid on;
-xlabel('X(t)'); ylabel(['X(t+', num2str(tau), ')']); zlabel(['X(t+', num2str(2*tau), ')']);
-title(['Phase Space Reconstruction - ', full_signal_labels{channel_idx}]);
 
 sgtitle('Phase Space Reconstruction of EEG Data');
 
@@ -148,24 +135,24 @@ sgtitle('Phase Space Reconstruction of EEG Data');
 
 % Setting parameters
 smooth_signal_data = smooth_signal_data'; % reformating data
-tolerance = 0.02;  % Tolerance for severity markers
+tolerance = 0.01;  % Tolerance for severity markers
 test_window = 2000;  % Number of samples per analysis window
 step_specificity = 1000;  % Step size between windows
 tau = 512;  % Time delay for phase space reconstruction
-gamma = 2.5;  % Sensitivity to sudden compactness changes
+gamma = 4;  % Sensitivity to sudden compactness changes
 
 % Seizure Severity Marks
 marks = [0.35, 0.45, 0.55, 0.7, 0.8];
 messages = {
-    'Predicting seizure activity.', ...
-    'Possible progression into seizure severity 1.', ...
-    'Possible progression into seizure severity 2.', ...
-    'Probable seizure.', ...
-    'Definitive seizure activity detected. Immediate medical attention required.'
+    'Marker 1 detected.', ...
+    'Marker 2 detected.', ...
+    'Marker 3 detected.', ...
+    'Marker 4 detected.', ...
+    'Marker 5 detected.'
 };
 
 % New: Define maximum allowed time gap for level 5 detections
-max_gap_seconds = 20;  % If another level 5 marker appears within x secs, trigger emergency
+max_gap_seconds = 15;  % If another level 5 marker appears within x secs, trigger emergency
 last_marker5_time = -inf;  % Initialize last level 5 detection time to a very negative number
 
 % Initialize tracking lists
@@ -247,7 +234,8 @@ for i = 1:step_specificity:(length(aligned_signal_data) - test_window - 2*tau)
 
         if (current_time - last_marker5_time) <= max_gap_seconds
             % If another level 5 detection is found within 10 sec, trigger emergency
-            fprintf('[EMERGENCY] Patient experiencing ongoing seizure. Immediate medical attention needed.\n');
+            fprintf(['[EMERGENCY] Patient may experience a seizure in the following minutes.\n' ...
+                     'Medical Attention is Nedded.\n']);
             fprintf('Time: %.2f seconds\n', current_time);
             break;
         end
