@@ -79,16 +79,28 @@ end
 aligned_signal_data(1:omit_samples) = [];
 aligned_time_data(1:omit_samples) = [];
 
-%% Apply Band-Pass Filtering (0.5 - 100 Hz)
+% %% Apply Band-Pass Filtering (0.5 - 1000 Hz)
+% 
+% low_cutoff = 0.5;  
+% high_cutoff = 100;  
+% order = 4;  % Filter order
+% nyquist = sample_rate / 2;  
+% wn = [low_cutoff, high_cutoff] / nyquist;  % Normalized cutoff frequencies
+% 
+% % Design a band-pass Butterworth filter
+% [b, a] = butter(order, wn, 'bandpass');
+% 
+% % Apply zero-phase filtering
+% filtered_signal_data = filtfilt(b, a, aligned_signal_data);
 
-low_cutoff = 0.5;  
-high_cutoff = 100;  
-order = 4;  % Filter order
+%% Apply Low-Pass Filtering (0.5 Hz)
+low_cutoff = 0.5;  % Cutoff frequency in Hz
+order = 1;  % Filter order
 nyquist = sample_rate / 2;  
-wn = [low_cutoff, high_cutoff] / nyquist;  % Normalized cutoff frequencies
+wn = low_cutoff / nyquist;  % Normalized cutoff frequency
 
-% Design a band-pass Butterworth filter
-[b, a] = butter(order, wn, 'bandpass');
+% Design a low-pass Butterworth filter
+[b, a] = butter(order, wn, 'low');
 
 % Apply zero-phase filtering
 filtered_signal_data = filtfilt(b, a, aligned_signal_data);
@@ -131,6 +143,26 @@ xlabel('Time (s)');
 
 sgtitle('Phase Space Reconstruction of EEG Data');
 
+%% Phase Space Reconstruction
+tau = 512;
+figure;
+
+% Ensure smooth_signal_data is a row vector
+smooth_signal_data = smooth_signal_data';
+
+% Compute delayed vectors
+X1 = smooth_signal_data(1+tau:end - tau); % Standard
+X2 = smooth_signal_data(1+2*tau:end); % Forward
+X3 = smooth_signal_data(1:end - 2*tau); % Backward
+
+% Plot phase space reconstruction
+plot3(X1, X2, X3, 'b');
+grid on;
+xlabel('X(t)'); ylabel(['X(t+', num2str(tau), ')']); zlabel(['X(t-', num2str(tau), ')']);
+title(['Phase Space Reconstruction - ', full_signal_labels{channel_idx}]);
+
+sgtitle('Phase Space Reconstruction of EEG Data');
+
 %% Enhanced Phase Space Analysis with Maximum Time Gap for Seizure Detection
 
 % Setting parameters
@@ -139,7 +171,7 @@ tolerance = 0.01;  % Tolerance for severity markers
 test_window = 2000;  % Number of samples per analysis window
 step_specificity = 1000;  % Step size between windows
 tau = 512;  % Time delay for phase space reconstruction
-gamma = 4;  % Sensitivity to sudden compactness changes
+gamma = 1;  % Sensitivity to sudden compactness changes
 
 % Seizure Severity Marks
 marks = [0.35, 0.45, 0.55, 0.7, 0.8];
@@ -152,7 +184,7 @@ messages = {
 };
 
 % New: Define maximum allowed time gap for level 5 detections
-max_gap_seconds = 15;  % If another level 5 marker appears within x secs, trigger emergency
+max_gap_seconds = 10;  % If another level 5 marker appears within x secs, trigger emergency
 last_marker5_time = -inf;  % Initialize last level 5 detection time to a very negative number
 
 % Initialize tracking lists
@@ -275,5 +307,7 @@ hold on;
 yline(marks(end), 'r--', 'Seizure Threshold');
 xlabel('Time (s)');
 ylabel('Combined Score');
+title('Combined Seizure Prediction Score');
+grid on;
 title('Combined Seizure Prediction Score');
 grid on;
