@@ -1,6 +1,6 @@
 clc; close all; clear all;
 
-edf_file = 'C:\Users\sfmdf\OneDrive\Documents\MATLAB\Capstone\EEG1.edf'; % EDF file path
+edf_file = 'C:\Users\sfmdf\OneDrive\Documents\MATLAB\Capstone\EEG2.edf'; % EDF file path
 [hdr, record] = edfread(edf_file);
 duration_minutes = height(hdr) / 60;
 
