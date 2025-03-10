@@ -1,93 +1,134 @@
 clc; close all; clear all;
 
-% Authors: Kat/Joey
+%% Load EEG File
 
-edf_file = '/Users/joeyroberts/Desktop/CAPSTONE/EEG2.edf'; % EDF file path
+edf_file = '/Users/joeyroberts/Desktop/CAPSTONE/EEG2.edf'; % EEG file path
 [hdr, record] = edfread(edf_file);
 duration_minutes = height(hdr) / 60;
 
-% Extract the signal labels (assuming EEG signals start from the 3rd column)
-signal_labels = hdr.Properties.VariableNames(3:end);  
+% Extract signal labels
+full_signal_labels = hdr.Properties.VariableNames;
+num_channels = length(full_signal_labels);
 
-% Extract EEG signal data
-signal_data = [hdr{:, 13}, hdr{:, 14}, hdr{:, 15}, hdr{:, 11}, hdr{:, 12}, hdr{:, 20}, hdr{:, 21}, hdr{:, 22}, hdr{:, 23}, hdr{:, 4}, hdr{:, 5}]; 
+%% Prompt User to Select a Channel for Analysis
 
-% Estimate sample rate
-sample_rate = 512; 
-time_limit = duration_minutes * 60; 
-sample_limit = round(time_limit * sample_rate);
-
-% Range of seconds to test
-seconds_to_test = 10;
-start = 300000;
-finish = start + seconds_to_test*512;
-
-% Time vector for plotting
-time_per_second = (0:511) / sample_rate;  
-
-% Align signal data with time
-aligned_signal_data = [];
-aligned_time_data = [];
-
-for j = 1:time_limit
-    % Extract 512 samples for the current second
-    Fz_second = signal_data{j, 1}; 
-    other_channels = cell2mat(signal_data(j, 2:end)); % Convert other channels to matrix
-    
-    second_time = time_per_second + (j - 1);  
-    aligned_signal_data = [aligned_signal_data; Fz_second, other_channels];
-    aligned_time_data = [aligned_time_data; second_time'];
+fprintf('Available EEG Channels:\n');
+for i = 2:num_channels
+    fprintf('%d: %s\n', i, full_signal_labels{i});
 end
 
-% Re-referencing: Remove common average from Fz
-ref = mean(aligned_signal_data(:, 2:end), 2); 
-Fz = aligned_signal_data(:, 1) - ref;
+channel_idx = input('Enter the number of the EEG channel to analyze: ');
+if channel_idx < 2 || channel_idx > num_channels
+    error('Invalid channel selection. Please choose a valid channel number from the list.');
+end
 
-% Plot raw Fz signal
+signal_data = hdr{:, channel_idx};
+fprintf('Analyzing channel: %s\n', full_signal_labels{channel_idx});
+
+ref_data = [hdr{:, 14}, hdr{:, 15}, hdr{:, 11}, hdr{:, 12}, hdr{:, 20}, hdr{:, 21}, hdr{:, 22}, hdr{:, 23}, hdr{:, 4}, hdr{:, 5}]; 
+
+%% Estimate Sample Rate and Create Time Vector
+
+sample_rate = 512;
+time_limit = duration_minutes * 60;
+sample_limit = round(time_limit * sample_rate);
+time_per_second = (0:511) / sample_rate;
+
+%% Align Signal Data with Time
+
+aligned_time_data = [];
+
+ref_data_unpack = cell2mat(ref_data);
+aligned_ref_data = reshape(ref_data_unpack, [], 10);
+
+data_unpack = cell2mat(signal_data);
+aligned_signal_data = reshape(data_unpack, [], 1);
+
+aligned_time_data = linspace(0, time_limit, sample_limit)';
+
+%% Display Raw EEG Signal Before Omitting Data
+
 figure;
-plot(aligned_time_data(start:finish), Fz(start:finish)); 
-ylabel('Fz', 'Interpreter', 'none');
-title('EEG Signal - Fz');
+plot(aligned_time_data, aligned_signal_data);
+ylabel(full_signal_labels{channel_idx}, 'Interpreter', 'none');
+title(['EEG Signal - ', full_signal_labels{channel_idx}]);
 grid on;
 xlabel('Time (s)');
 
-%% **High-Pass Filter (0.5 Hz)**
-low_cutoff = 0.5;  
-order = 4;  
+omit_time = input('Enter how many seconds of data to omit from the beginning: ');
+omit_samples = omit_time * sample_rate;
 
-[b, a] = butter(order, low_cutoff / (sample_rate / 2), 'high');
-high_passed_Fz = filtfilt(b, a, Fz);
+if omit_samples < 0 || omit_samples >= length(aligned_signal_data)
+    error('Invalid omission time. Must be within range of available data.');
+end
 
-%% **Gaussian Low-Pass Filter (100 Hz)**
-sigma = 10; 
-window_size = 50; 
+omit_time_end = input('Enter how many seconds of data to omit from the end: ');
+omit_samples_end = omit_time_end * sample_rate;
 
-% Create a 1D Gaussian kernel
-gaussian_kernel = gausswin(window_size);
-gaussian_kernel = gaussian_kernel / sum(gaussian_kernel); % Normalize
+if omit_samples_end < 0 || omit_samples_end >= length(aligned_signal_data)
+    error('Invalid omission time. Must be within range of available data.');
+end
 
-% Apply Gaussian filter using convolution
-filtered_Fz = conv(high_passed_Fz, gaussian_kernel, 'same');
+aligned_signal_data(1:omit_samples) = [];
+aligned_time_data(1:omit_samples) = [];
+aligned_ref_data(1:omit_samples, :) = [];
 
-%% **Plot Filtered Fz Signal**
+aligned_signal_data = aligned_signal_data(1:end-omit_samples_end);
+aligned_time_data = aligned_time_data(1:end-omit_samples_end);
+aligned_ref_data = aligned_ref_data(1:end-omit_samples_end, :);
+
+%% Re-referencing
+
+ref = mean(aligned_ref_data, 2);
+re_ref_signal = aligned_signal_data - ref;
+
+%% Apply Band-Pass Filtering (0.1 - 40 Hz)
+
+low_cutoff = 0.1;  
+high_cutoff = 40;  
+order = 4;  % Filter order
+nyquist = sample_rate / 2;  
+wn = [low_cutoff, high_cutoff] / nyquist;  % Normalized cutoff frequencies
+
+% Design a band-pass Butterworth filter
+[b, a] = butter(order, wn, 'bandpass');
+
+% Apply zero-phase filtering
+filtered_signal = filtfilt(b, a, re_ref_signal);
+
+%% Subplot Filtered Signal in 20-Second Intervals
+
+seconds_to_test = 20;
+num_intervals = 6;
+starting_index = 650000;
+start_times = linspace(starting_index, starting_index + (num_intervals - 1) * 20 * sample_rate, num_intervals);
+
 figure;
-plot(aligned_time_data(start:finish), filtered_Fz(start:finish), 'r');
-ylabel('Fz', 'Interpreter', 'none');
-title('Filtered EEG Signal - Fz');
-grid on;
-xlabel('Time (s)');
+for i = 1:num_intervals
+    start = round(start_times(i));
+    finish = start + seconds_to_test * sample_rate;
+    subplot(2, 3, i);
+    plot(aligned_time_data(start:finish), filtered_signal(start:finish), 'r');
+    ylabel(full_signal_labels{channel_idx}, 'Interpreter', 'none');
+    title(['Filtered EEG Signal at ', num2str(round((start)/512)), ' Seconds']);
+    grid on;
+    xlabel('Time (s)');
+end
 
-%% **Phase Space Reconstruction for Fz**
+%% Phase Space Reconstruction
+
 tau = 256;
 figure;
-X = filtered_Fz(start:finish)';  
-X3 = X(1:end - 2*tau);
-X2 = X(1+tau:end - tau);
-X1 = X(1+2*tau:end);
-
-plot3(X1, X2, X3, 'b');
-grid on;
-xlabel('X(t)'); 
-ylabel(['X(t+', num2str(tau), ')']); 
-zlabel(['X(t+', num2str(2*tau), ')']);
-title('Phase Space Reconstruction - Fz');
+for i = 1:num_intervals
+    start = round(start_times(i));
+    finish = start + seconds_to_test * sample_rate;
+    X = filtered_signal(start:finish)';
+    X3 = X(1:end - 2*tau);
+    X2 = X(1+tau:end - tau);
+    X1 = X(1+2*tau:end);
+    subplot(2, 3, i);
+    plot3(X1, X2, X3, 'b');
+    grid on;
+    xlabel('X(t)'); ylabel(['X(t-', num2str(tau/512), 'sec)']); zlabel(['X(t-', num2str(2*(tau/512)), 'sec)']);
+    title(['Phase Space Reconstruction at ', num2str(round((start)/512)), ' Seconds']);
+end
