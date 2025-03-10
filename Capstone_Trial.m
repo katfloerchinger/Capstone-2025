@@ -25,7 +25,7 @@ end
 signal_data = hdr{:, channel_idx};
 fprintf('Analyzing channel: %s\n', full_signal_labels{channel_idx});
 
-ref_data = [hdr{:, 14}, hdr{:, 15}, hdr{:, 11}, hdr{:, 12}, hdr{:, 20}, hdr{:, 21}, hdr{:, 22}, hdr{:, 23}, hdr{:, 4}, hdr{:, 5}]; 
+ref_data = [hdr{:, 2:23}]; 
 
 %% Estimate Sample Rate and Create Time Vector
 
@@ -36,10 +36,8 @@ time_per_second = (0:511) / sample_rate;
 
 %% Align Signal Data with Time
 
-aligned_time_data = [];
-
 ref_data_unpack = cell2mat(ref_data);
-aligned_ref_data = reshape(ref_data_unpack, [], 10);
+aligned_ref_data = reshape(ref_data_unpack, [], 22);
 
 data_unpack = cell2mat(signal_data);
 aligned_signal_data = reshape(data_unpack, [], 1);
@@ -100,7 +98,8 @@ filtered_signal = filtfilt(b, a, re_ref_signal);
 
 seconds_to_test = 20;
 num_intervals = 6;
-starting_index = 650000;
+starting_sec = 1260;
+starting_index = starting_sec*sample_rate;
 start_times = linspace(starting_index, starting_index + (num_intervals - 1) * 20 * sample_rate, num_intervals);
 
 figure;
