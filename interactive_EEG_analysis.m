@@ -85,7 +85,7 @@ aligned_time_data = aligned_time_data(retain_start_samples:retain_end_samples);
 %% Apply Band-Pass Filtering (0.5 - 1000 Hz)
 
 low_cutoff = 0.1;  % per Dr Shahin
-high_cutoff = 60;  % need to mess around with
+high_cutoff = 40;  % need to mess around with
 order = 4;  % Filter order
 nyquist = sample_rate / 2;  
 wn = [low_cutoff, high_cutoff] / nyquist;  % Normalized cutoff frequencies
@@ -103,13 +103,13 @@ aligned_time_data = aligned_time_data(1:new_length);
 aligned_signal_data = aligned_signal_data(1:new_length);
 filtered_signal_data = filtered_signal_data(1:new_length);
 
-%% Multi-Window EEG analysis
+%% Multi-Window EEG Irregularity Analysis
 while true
-    % Ask user to continue wuth another analysis
-    cont_input = input('Input "end" to complete analysis. Hit "enter" to continue. ', 's');
+    % Ask user to continue with another analysis
+    cont_input = input('Input "end" to complete analysis. Hit "enter" to continue: ', 's');
     
     % Exit condition
-    if strcmpi(cont_input, "end") | strcmpi(cont_input, "stop")
+    if strcmpi(cont_input, "end") || strcmpi(cont_input, "stop")
         disp('Exiting EEG Analysis.');
         break;
     end
@@ -124,7 +124,7 @@ while true
     end
 
     % Ask user for the central time point
-    center_time = input('Enter the central time in seconds (e.g., 1300): ');
+    center_time = input('Enter the central time in seconds (e.g., 1300): ') - retain_start_time;
 
     % Convert time to sample indices
     center_idx = round(center_time * sample_rate);
@@ -133,16 +133,20 @@ while true
     % Define 3 pre-center and 4 post-center time windows
     time_windows = [-3, -2, -1, 0, 1, 2, 3, 4] * range_samples + center_idx;
 
-    % Initialize periodicity scores
-    periodicity_scores = nan(1, length(time_windows) - 1);
-    valid_time_stamps = nan(1, length(time_windows) - 1); % Store valid time windows
+    % Initialize storage for irregularity metrics
+    spectral_entropy_scores = nan(1, length(time_windows) - 1);
+    approximate_entropy_scores = nan(1, length(time_windows) - 1);
+    sample_entropy_scores = nan(1, length(time_windows) - 1);
+    variance_scores = nan(1, length(time_windows) - 1);
+    lyapunov_exponent_scores = nan(1, length(time_windows) - 1);
+    valid_time_stamps = nan(1, length(time_windows) - 1);
 
     % Create figure for visualization
     figure;
-    sgtitle('Multi-Window EEG Periodicity Analysis');
+    sgtitle('Multi-Window EEG Irregularity Analysis');
 
     plot_index = 1; % Track subplot index
-    valid_idx = 1; % Track valid periodicity scores
+    valid_idx = 1; % Track valid scores
 
     for i = 1:length(time_windows)
         start_idx = time_windows(i);
@@ -153,15 +157,42 @@ while true
             continue; % Skip invalid windows
         end
         
-        % Extract EEG segment for periodicity analysis
+        % Extract EEG segment for analysis
         EEG_segment = filtered_signal_data(start_idx:end_idx);
 
-        %% Compute Periodicity Score (Mean Recurrence Rate)
-        dist_matrix = squareform(pdist(EEG_segment', 'euclidean'));
-        threshold = 0.1 * mean(dist_matrix(:));  
-        recurrence_matrix = dist_matrix < threshold;
-        periodicity_scores(valid_idx) = mean(recurrence_matrix(:));
-        valid_time_stamps(valid_idx) = start_idx / sample_rate; % Store corresponding time
+        %% 1. Compute Spectral Entropy
+        psd_values = abs(fft(EEG_segment)).^2; % Power spectral density
+        psd_norm = psd_values / sum(psd_values); % Normalize
+        spectral_entropy_scores(valid_idx) = -sum(psd_norm .* log2(psd_norm + eps)); % Shannon entropy
+
+        %% 2. Compute Approximate Entropy (ApEn)
+        m = 2; % Embedding dimension
+        r = 0.2 * std(EEG_segment); % Tolerance
+        if length(EEG_segment) > m + 1
+            approximate_entropy_scores(valid_idx) = ApEn(EEG_segment, m, r);
+        else
+            approximate_entropy_scores(valid_idx) = NaN;
+        end
+
+        %% 3. Compute Sample Entropy (SampEn)
+        if length(EEG_segment) > m + 1
+            sample_entropy_scores(valid_idx) = SampEn(EEG_segment, m, r);
+        else
+            sample_entropy_scores(valid_idx) = NaN;
+        end
+
+        %% 4. Compute Variance
+        variance_scores(valid_idx) = var(EEG_segment);
+
+        %% 5. Compute Lyapunov Exponent
+        if length(EEG_segment) > 10
+            lyapunov_exponent_scores(valid_idx) = LyapunovExponent(EEG_segment);
+        else
+            lyapunov_exponent_scores(valid_idx) = NaN;
+        end
+
+        % Store corresponding time
+        valid_time_stamps(valid_idx) = (start_idx / sample_rate) + retain_start_time;
 
         % Plot EEG segment
         subplot(2, 4, plot_index);
@@ -169,29 +200,115 @@ while true
         grid on;
         xlabel('Time (s)');
         ylabel('EEG Signal');
-        title(['Range: ', num2str(start_idx/sample_rate), 's - ', num2str(end_idx/sample_rate), 's']);
+        title(['Range: ', num2str((start_idx/sample_rate) + retain_start_time), 's - ', num2str((end_idx/sample_rate) + retain_start_time), 's']);
 
         plot_index = plot_index + 1;
         valid_idx = valid_idx + 1;
     end
 
-    % Remove NaN values from periodicity_scores and valid_time_stamps
-    valid_indices = ~isnan(periodicity_scores);
-    periodicity_scores = periodicity_scores(valid_indices);
+    % Remove NaN values
+    valid_indices = ~isnan(spectral_entropy_scores);
     valid_time_stamps = valid_time_stamps(valid_indices);
 
-    % Ensure we have at least one valid periodicity score before plotting
+    spectral_entropy_scores = spectral_entropy_scores(valid_indices);
+    approximate_entropy_scores = approximate_entropy_scores(valid_indices);
+    sample_entropy_scores = sample_entropy_scores(valid_indices);
+    variance_scores = variance_scores(valid_indices);
+    lyapunov_exponent_scores = lyapunov_exponent_scores(valid_indices);
+
+    % Ensure we have at least one valid score before plotting
     if ~isempty(valid_time_stamps)
         figure;
-        plot(valid_time_stamps, periodicity_scores, '-o', 'LineWidth', 1.5);
-        xlabel('Time (s)');
-        ylabel('Periodicity Score');
-        title('Periodicity Score Across EEG Time Windows');
-        grid on;
+        subplot(5,1,1);
+        plot(valid_time_stamps, spectral_entropy_scores, '-o', 'LineWidth', 1.5);
+        xlabel('Time (s)'); ylabel('Spectral Entropy'); title('Spectral Entropy Across Windows'); grid on;
+
+        subplot(5,1,2);
+        plot(valid_time_stamps, approximate_entropy_scores, '-o', 'LineWidth', 1.5);
+        xlabel('Time (s)'); ylabel('ApEn'); title('Approximate Entropy Across Windows'); grid on;
+
+        subplot(5,1,3);
+        plot(valid_time_stamps, sample_entropy_scores, '-o', 'LineWidth', 1.5);
+        xlabel('Time (s)'); ylabel('SampEn'); title('Sample Entropy Across Windows'); grid on;
+
+        subplot(5,1,4);
+        plot(valid_time_stamps, variance_scores, '-o', 'LineWidth', 1.5);
+        xlabel('Time (s)'); ylabel('Variance'); title('Variance Across Windows'); grid on;
+
+        subplot(5,1,5);
+        plot(valid_time_stamps, lyapunov_exponent_scores, '-o', 'LineWidth', 1.5);
+        xlabel('Time (s)'); ylabel('Lyapunov Exponent'); title('Lyapunov Exponent Across Windows'); grid on;
     else
-        disp('No valid periodicity scores computed. Try a different time range.');
+        disp('No valid irregularity scores computed. Try a different time range.');
     end
 
     % Pause before next iteration
     pause(0.3);
+end
+
+%% Approximate Entropy Function (Fixed)
+function ApEn_value = ApEn(data, m, r)
+    N = length(data);
+    if N <= m + 1
+        ApEn_value = NaN; % Return NaN if the window is too small
+        return;
+    end
+    
+    try
+        phi_m = mean(arrayfun(@(i) sum(abs(data(i:i+m-1) - data(i+1:i+m))) <= r, 1:N-m));
+        phi_m1 = mean(arrayfun(@(i) sum(abs(data(i:i+m) - data(i+1:i+m+1))) <= r, 1:N-m-1));
+    catch
+        ApEn_value = NaN; % In case of error, return NaN
+        return;
+    end
+
+    if phi_m == 0 || phi_m1 == 0
+        ApEn_value = NaN; % Avoid log(0) errors
+    else
+        ApEn_value = log(phi_m) - log(phi_m1);
+    end
+end
+
+%% Sample Entropy Function (Fixed)
+function SampEn_value = SampEn(data, m, r)
+    N = length(data);
+    if N <= m + 1
+        SampEn_value = NaN; % Return NaN if the window is too small
+        return;
+    end
+
+    try
+        Cm = mean(arrayfun(@(i) sum(abs(data(i:i+m-1) - data(i+1:i+m))) <= r, 1:N-m));
+        Cm1 = mean(arrayfun(@(i) sum(abs(data(i:i+m) - data(i+1:i+m+1))) <= r, 1:N-m-1));
+    catch
+        SampEn_value = NaN; % In case of error, return NaN
+        return;
+    end
+
+    if Cm == 0 || Cm1 == 0
+        SampEn_value = NaN; % Avoid log(0) errors
+    else
+        SampEn_value = -log(Cm1 / Cm);
+    end
+end
+
+%% Lyapunov Exponent Function (Fixed)
+function LLE = LyapunovExponent(data)
+    N = length(data);
+    
+    % Ensure data is long enough for meaningful calculation
+    if N < 10
+        LLE = NaN;
+        return;
+    end
+    
+    % Small perturbation for divergence estimation
+    epsilon = 1e-5;
+    
+    % Compute small differences between successive points
+    divergence = abs(data(2:end) - data(1:end-1));
+    divergence(divergence < epsilon) = epsilon; % Avoid log(0)
+    
+    % Compute Lyapunov Exponent as mean logarithmic divergence
+    LLE = mean(log(divergence));
 end
