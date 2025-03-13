@@ -134,7 +134,7 @@ while true
     end
 
     % Ask the user for the central time point
-    center_time = input('Enter the central time in seconds (e.g., 1300): ');
+    center_time = input('Enter the central time in seconds (e.g., 1300): ') - retain_start_time;
 
     % Convert time to sample indices
     center_idx = round(center_time * sample_rate);
@@ -180,7 +180,7 @@ while true
         xlabel('X(t)');
         ylabel(['X(t+', num2str(tau), ')']);
         zlabel(['X(t-', num2str(tau), ')']);
-        title(['Range: ', num2str((start_idx/sample_rate)), 's - ', num2str((end_idx/sample_rate)), 's']);
+        title(['Range: ', num2str((start_idx/sample_rate) + retain_start_time), 's - ', num2str((end_idx/sample_rate) + retain_start_time), 's']);
 
         plot_index = plot_index + 1;
     end
