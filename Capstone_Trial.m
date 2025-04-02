@@ -97,10 +97,10 @@ filtered_signal = filtfilt(b, a, re_ref_signal);
 %% Subplot Filtered Signal in 20-Second Intervals
 
 seconds_to_test = 20;
-num_intervals = 6;
-starting_sec = 1260;
-starting_index = starting_sec*sample_rate;
-start_times = linspace(starting_index, starting_index + (num_intervals - 1) * 20 * sample_rate, num_intervals);
+num_intervals = 4;
+starting_sec = 1370;
+starting_index = (starting_sec-omit_time)*sample_rate;
+start_times = linspace(starting_index, starting_index + (num_intervals - 1) * seconds_to_test * sample_rate, num_intervals);
 
 figure;
 for i = 1:num_intervals
@@ -109,14 +109,14 @@ for i = 1:num_intervals
     subplot(2, 3, i);
     plot(aligned_time_data(start:finish), filtered_signal(start:finish), 'r');
     ylabel(full_signal_labels{channel_idx}, 'Interpreter', 'none');
-    title(['Filtered EEG Signal at ', num2str(round((start)/512)), ' Seconds']);
+    title(['Filtered EEG Signal at ', num2str(round((start)/512) + omit_time), ' Seconds']);
     grid on;
     xlabel('Time (s)');
 end
 
 %% Phase Space Reconstruction
 
-tau = 256;
+tau = 512;
 figure;
 for i = 1:num_intervals
     start = round(start_times(i));
@@ -127,7 +127,10 @@ for i = 1:num_intervals
     X1 = X(1+2*tau:end);
     subplot(2, 3, i);
     plot3(X1, X2, X3, 'b');
+    xlim([-200 400]);
+    ylim([-200 400]);
+    zlim([-200 400]);
     grid on;
     xlabel('X(t)'); ylabel(['X(t-', num2str(tau/512), 'sec)']); zlabel(['X(t-', num2str(2*(tau/512)), 'sec)']);
-    title(['Phase Space Reconstruction at ', num2str(round((start)/512)), ' Seconds']);
+    title(['Phase Space Reconstruction at ', num2str(round((start)/512) + omit_time), ' Seconds']);
 end
