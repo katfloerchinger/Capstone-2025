@@ -114,8 +114,8 @@ recon_time = aligned_time_data(1:min_len);  % Align time vector
 %% KDE Analysis with Multiple Window Sizes and Weighted Averaging
 
 % Define all window sizes (in seconds)
-window_sizes_sec = [0.5, 1, 2, 5, 10];
-master_window_sec = 20;
+window_sizes_sec = [0.5, 1, 2.5];
+master_window_sec = 5;
 
 % Convert to samples
 window_sizes_samples = window_sizes_sec * sample_rate;
@@ -189,7 +189,7 @@ for i = 1:num_master_windows
     end
 end
 
-%% Plot Final Weighted KDE Values Over Time (20s Master Windows)
+%% Plot Final Weighted KDE Values Over Time (Master Windows)
 
 figure;
 plot(master_times, final_kde_values, '-o', 'LineWidth', 1.5);
