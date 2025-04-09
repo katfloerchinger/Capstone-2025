@@ -2,7 +2,7 @@ clc; close all; clear all;
 
 %% Load EEG File
 
-edf_file = '/Users/joeyroberts/Desktop/CAPSTONE/EEG2.edf'; % EEG file path
+edf_file = '/Users/joeyroberts/Desktop/CAPSTONE/EEG2_Trim.edf'; % EEG file path
 [hdr, record] = edfread(edf_file);
 duration_minutes = height(hdr) / 60;
 
@@ -42,38 +42,7 @@ aligned_ref_data = reshape(ref_data_unpack, [], 22);
 data_unpack = cell2mat(signal_data);
 aligned_signal_data = reshape(data_unpack, [], 1);
 
-aligned_time_data = linspace(0, time_limit, sample_limit)';
-
-%% Display Raw EEG Signal Before Omitting Data
-
-figure;
-plot(aligned_time_data, aligned_signal_data);
-ylabel(full_signal_labels{channel_idx}, 'Interpreter', 'none');
-title(['EEG Signal - ', full_signal_labels{channel_idx}]);
-grid on;
-xlabel('Time (s)');
-
-omit_time = input('Enter how many seconds of data to omit from the beginning: ');
-omit_samples = omit_time * sample_rate;
-
-if omit_samples < 0 || omit_samples >= length(aligned_signal_data)
-    error('Invalid omission time. Must be within range of available data.');
-end
-
-omit_time_end = input('Enter how many seconds of data to omit from the end: ');
-omit_samples_end = omit_time_end * sample_rate;
-
-if omit_samples_end < 0 || omit_samples_end >= length(aligned_signal_data)
-    error('Invalid omission time. Must be within range of available data.');
-end
-
-aligned_signal_data(1:omit_samples) = [];
-aligned_time_data(1:omit_samples) = [];
-aligned_ref_data(1:omit_samples, :) = [];
-
-aligned_signal_data = aligned_signal_data(1:end-omit_samples_end);
-aligned_time_data = aligned_time_data(1:end-omit_samples_end);
-aligned_ref_data = aligned_ref_data(1:end-omit_samples_end, :);
+aligned_time_data = linspace(600, time_limit+600, sample_limit);
 
 %% Re-referencing
 
@@ -97,9 +66,9 @@ filtered_signal = filtfilt(b, a, re_ref_signal);
 %% Subplot Filtered Signal in 20-Second Intervals
 
 seconds_to_test = 20;
-num_intervals = 4;
-starting_sec = 1370;
-starting_index = (starting_sec-omit_time)*sample_rate;
+num_intervals = 6;
+starting_sec = 760;
+starting_index = (starting_sec)*sample_rate;
 start_times = linspace(starting_index, starting_index + (num_intervals - 1) * seconds_to_test * sample_rate, num_intervals);
 
 figure;
@@ -109,7 +78,7 @@ for i = 1:num_intervals
     subplot(2, 3, i);
     plot(aligned_time_data(start:finish), filtered_signal(start:finish), 'r');
     ylabel(full_signal_labels{channel_idx}, 'Interpreter', 'none');
-    title(['Filtered EEG Signal at ', num2str(round((start)/512) + omit_time), ' Seconds']);
+    title(['Filtered EEG Signal at ', num2str(round((start)/512)), ' Seconds']);
     grid on;
     xlabel('Time (s)');
 end
@@ -127,10 +96,10 @@ for i = 1:num_intervals
     X1 = X(1+2*tau:end);
     subplot(2, 3, i);
     plot3(X1, X2, X3, 'b');
-    xlim([-200 400]);
-    ylim([-200 400]);
-    zlim([-200 400]);
+    % xlim([-200 400]);
+    % ylim([-200 400]);
+    % zlim([-200 400]);
     grid on;
     xlabel('X(t)'); ylabel(['X(t-', num2str(tau/512), 'sec)']); zlabel(['X(t-', num2str(2*(tau/512)), 'sec)']);
-    title(['Phase Space Reconstruction at ', num2str(round((start)/512) + omit_time), ' Seconds']);
+    title(['Phase Space Reconstruction at ', num2str(round((start)/512)), ' Seconds']);
 end
