@@ -2,7 +2,7 @@ clc; close all; clear all;
 
 %% Load EEG File
 
-edf_file = '/Users/anthonytellez/Desktop/BIOEN 404/eeglab2024.2/EEG2.edf'; % EEG file path
+edf_file = '/Users/anthonytellez/Desktop/BIOEN 404/eeglab2024.2/EEG1.edf'; % EEG file path
 [hdr, record] = edfread(edf_file);
 duration_minutes = height(hdr) / 60;
 
@@ -114,8 +114,8 @@ recon_time = aligned_time_data(1:min_len);  % Align time vector
 %% KDE Analysis with Multiple Window Sizes and Weighted Averaging
 
 % Define all window sizes (in seconds)
-window_sizes_sec = [0.5, 1, 2.5];
-master_window_sec = 5;
+window_sizes_sec = [0.5, 1, 2, 5];
+master_window_sec = 10;
 
 % Convert to samples
 window_sizes_samples = window_sizes_sec * sample_rate;
@@ -221,7 +221,7 @@ for w = 1:length(window_sizes_sec)
     linearity_results(w).window_size = ws;
 end
 
-%% Final Aggregation Using 20s Master Windows
+%% Final Aggregation Using 4s Master Windows
 
 num_master_windows = floor(usable_len / master_window_samples);
 master_times = zeros(num_master_windows, 1);
@@ -270,9 +270,13 @@ kde_vals_norm = (kde_vals_norm - kde_min) / (kde_max - kde_min);
 lin_vals_norm = (lin_vals_norm - lin_min) / (lin_max - lin_min);
 
 % Final score combination
-alpha = 0.7;  % Linearity weight
-final_score = alpha * lin_vals_norm + (1 - alpha) * (1 - kde_vals_norm);
+alpha = 1 / (1 + median(lin_vals_norm));  % Linearity weight
+final_score = alpha * lin_vals_norm + (1 - alpha) * (kde_vals_norm);
+final_score_dif = diff(final_score);
+final_score = final_score(1:end-1);
 final_time = master_times(valid_idx);
+final_time = final_time(1:end-1);
+overall_score = final_score .* final_score_dif;
 
 %% Plot Final Combined Metric
 
@@ -281,10 +285,26 @@ plot(final_time, final_score, '-o', 'LineWidth', 1.5);
 xlabel('Time (s)');
 ylabel('Final Combined Score');
 title('EEG Phase Space Complexity Score (Linearity + Compactness)');
-ylim([0 1]);
+ylim([-1 1]);
 grid on;
 
-% the points around the seizure time are relatively stable +/1 100 seconds
+figure;
+plot(final_time, final_score_dif, '-o', 'LineWidth', 1.5);
+xlabel('Time (s)');
+ylabel('Final Combined Score');
+title('EEG Phase Space Complexity Score Derivative (Linearity + Compactness)');
+ylim([-1 1]);
+grid on;
+
+figure;
+plot(final_time, overall_score, '-o', 'LineWidth', 1.5);
+xlabel('Time (s)');
+ylabel('Final Combined Score');
+title('EEG Phase Space Complexity Overall Score (Linearity + Compactness)');
+ylim([-1 1]);
+grid on;
+
+% the points around the seizure time are relatively stable +/- 100 seconds
 % being centered around 0.6 and 0.7 scores. Perhaps the method is to count
 % the number of points within this range that is better associated with
 % seizure activity rather than large scores. Perhaps a stable score
